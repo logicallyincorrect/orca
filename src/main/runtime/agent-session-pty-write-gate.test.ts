@@ -23,6 +23,28 @@ beforeEach(() => {
 })
 
 describe('capability invisibility', () => {
+  it('fences a recovery and in-flight writes without blocking other panes', () => {
+    const admitted = gate.assertAdmitted(PTY_ID)
+    const release = gate.holdUnboundPtyForRecovery(PTY_ID, SESSION_ID)
+    expect(release).not.toBeNull()
+    expect(gate.enforcing).toBe(true)
+    expect(gate.admit(PTY_ID).admitted).toBe(false)
+    expect(gate.readmit(PTY_ID, admitted).admitted).toBe(false)
+    expect(gate.admit('other-pane').admitted).toBe(true)
+    expect(gate.holdUnboundPtyForRecovery(PTY_ID, SESSION_ID)).toBeNull()
+    release?.()
+    const newerRelease = gate.holdUnboundPtyForRecovery(PTY_ID, SESSION_ID)
+    release?.()
+    expect(gate.admit(PTY_ID).admitted).toBe(false)
+    newerRelease?.()
+    expect(gate.admit(PTY_ID).admitted).toBe(true)
+  })
+
+  it('does not claim a durable session for terminal recovery', () => {
+    gate.bindPty(PTY_ID, SESSION_ID)
+    expect(gate.holdUnboundPtyForRecovery(PTY_ID, SESSION_ID)).toBeNull()
+  })
+
   it('admits every PTY while nothing is bound, which is the shape of today builds', () => {
     gate.attachRecordLookup((sessionId) => records.get(sessionId) ?? null)
     expect(gate.enforcing).toBe(false)

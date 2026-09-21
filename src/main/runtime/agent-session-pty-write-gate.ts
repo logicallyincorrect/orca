@@ -42,6 +42,7 @@ type BoundPane = { sessionId: string; attemptToken: string | null }
 
 export class AgentSessionPtyWriteGate {
   private readonly panesByPtyId = new Map<string, BoundPane>()
+  private readonly recoveryHolds = new Map<string, { sessionId: string }>()
   private lookup: AgentSessionRecordLookup | null = null
 
   /** Point the gate at the durable store. Until this is called nothing can be enforced. */
@@ -52,6 +53,20 @@ export class AgentSessionPtyWriteGate {
   detachRecordLookup(): void {
     this.lookup = null
     this.panesByPtyId.clear()
+    this.recoveryHolds.clear()
+  }
+
+  holdUnboundPtyForRecovery(ptyId: string, sessionId: string): (() => void) | null {
+    if (this.panesByPtyId.has(ptyId) || this.recoveryHolds.has(ptyId)) {
+      return null
+    }
+    const hold = { sessionId }
+    this.recoveryHolds.set(ptyId, hold)
+    return () => {
+      if (this.recoveryHolds.get(ptyId) === hold) {
+        this.recoveryHolds.delete(ptyId)
+      }
+    }
   }
 
   bindPty(ptyId: string, sessionId: string): void {
@@ -69,6 +84,9 @@ export class AgentSessionPtyWriteGate {
    * a different session.
    */
   bindPtyForAttempt(ptyId: string, sessionId: string, attemptToken: string): boolean {
+    if (this.recoveryHolds.has(ptyId)) {
+      return false
+    }
     const current = this.panesByPtyId.get(ptyId)
     if (current && current.attemptToken === null) {
       return false
@@ -106,10 +124,14 @@ export class AgentSessionPtyWriteGate {
 
   /** False while no PTY is bound, which is every write path in today's builds. */
   get enforcing(): boolean {
-    return this.lookup !== null && this.panesByPtyId.size > 0
+    return this.recoveryHolds.size > 0 || (this.lookup !== null && this.panesByPtyId.size > 0)
   }
 
   admit(ptyId: string): AgentSessionPtyWriteAdmission {
+    const hold = this.recoveryHolds.get(ptyId)
+    if (hold) {
+      return evaluateAgentSessionPtyWriteAdmission({ sessionId: hold.sessionId, record: null })
+    }
     if (!this.enforcing) {
       return ADMITTED_UNBOUND
     }
@@ -118,6 +140,9 @@ export class AgentSessionPtyWriteGate {
 
   /** Narrow pre-ownership input for the reserved TUI's provider identity probe. */
   admitProof(ptyId: string, authority: { sessionId: string; spawnToken: string }): boolean {
+    if (this.recoveryHolds.has(ptyId)) {
+      return false
+    }
     const binding = this.binding(ptyId)
     const lease = binding?.record?.lease
     const provingReservation =
@@ -141,6 +166,9 @@ export class AgentSessionPtyWriteGate {
 
   /** Re-check a write already in flight against the fence it was admitted under. */
   readmit(ptyId: string, admitted: AgentSessionPtyWriteAdmittance): AgentSessionPtyWriteAdmission {
+    if (this.recoveryHolds.has(ptyId)) {
+      return this.admit(ptyId)
+    }
     if (admitted.sessionId === null && !this.enforcing) {
       return ADMITTED_UNBOUND
     }

@@ -74,6 +74,21 @@ function tokenizeProcessCommandLine(
   return parsed.ok ? parsed.tokens : null
 }
 
+export function codexResumeThreadFromCommandLine(
+  commandLine: string,
+  platform: NodeJS.Platform = process.platform
+): string | null {
+  const tokens = tokenizeProcessCommandLine(commandLine, platform)
+  if (!tokens) {
+    return null
+  }
+  const index = tokens.indexOf('resume')
+  const thread = tokens[index + 1]
+  return index !== -1 && thread && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(thread)
+    ? thread
+    : null
+}
+
 export function isCodexResumeProcessCommandLine(
   commandLine: string,
   threadId: string,

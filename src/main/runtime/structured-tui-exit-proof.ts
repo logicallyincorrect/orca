@@ -17,7 +17,10 @@ function provesRecordedProcessExited(proof: AgentSessionOwnerProbe): boolean {
   return proof.outcome === 'pid-absent' || proof.outcome === 'identity-mismatch'
 }
 
-async function waitForRecordedProcessExit(input: ExitProofInput, staleError: Error): Promise<void> {
+async function waitForRecordedProcessExit(
+  input: Omit<ExitProofInput, 'waitForExit'>,
+  staleError: Error
+): Promise<void> {
   const probe = input.probe ?? ((identity) => probeAgentSessionProcessIdentity({ identity }))
   const attempts = input.staleHandleProbeAttempts ?? DEFAULT_STALE_HANDLE_PROBE_ATTEMPTS
   const intervalMs = input.staleHandleProbeIntervalMs ?? DEFAULT_STALE_HANDLE_PROBE_INTERVAL_MS
@@ -30,6 +33,12 @@ async function waitForRecordedProcessExit(input: ExitProofInput, staleError: Err
     }
   }
   throw staleError
+}
+
+export function waitForStructuredTuiProcessExit(
+  input: Omit<ExitProofInput, 'waitForExit'>
+): Promise<void> {
+  return waitForRecordedProcessExit(input, new Error('Provider exit is unverifiable'))
 }
 
 export async function waitForStructuredTuiExitProof(input: ExitProofInput): Promise<void> {

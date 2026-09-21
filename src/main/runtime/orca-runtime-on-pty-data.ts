@@ -14,8 +14,67 @@ import {
   tailGainedNewerBlockedReason
 } from './terminal-wait-tail-state'
 import { extractOscTitleScanTail } from '../../shared/osc-title-scan-tail'
+import { createTerminalCodexFailover } from './terminal-codex-failover-runtime'
+import { recoverTerminalCodexContext } from './terminal-codex-recovered-context'
+import type { CodexFailoverTerminal } from './terminal-codex-account-failover'
+import { resolveTerminalCodexFailoverContext } from './terminal-codex-failover-context'
 
 export class OrcaRuntimeWithOnPtyData extends OrcaRuntimeWithPreparePtyExecutionContext {
+  protected readonly terminalCodexFailover = createTerminalCodexFailover({
+    runtime: this,
+    controller: () => this.ptyController,
+    enabled: () => this.store?.getSettings().codexAutomaticFailover === true,
+    seamless: () => this.store?.getSettings().codexSeamlessFailover === true,
+    accounts: () => this.accounts.getCodexAccountService(),
+    discoverContext: (ptyId) => this.recoverCodexTerminalContext(ptyId),
+    isCurrentTerminal: (terminal) => this.isCurrentCodexFailoverTerminal(terminal),
+    context: (ptyId) =>
+      this.store
+        ? resolveTerminalCodexFailoverContext({
+            pty: this.ptysById.get(ptyId),
+            handle: this.getCodexFailoverHandle(ptyId),
+            settings: this.store.getSettings(),
+            rows: this.getAgentStatusSnapshotFn?.() ?? []
+          })
+        : null
+  })
+
+  private getCodexFailoverHandle(ptyId: string): string | undefined {
+    const pty = this.ptysById.get(ptyId)
+    return pty?.connected ? this.issuePtyHandle(pty) : undefined
+  }
+
+  recoverCodexTerminalContext(ptyId: string): Promise<CodexFailoverTerminal | null> {
+    return this.store
+      ? recoverTerminalCodexContext(
+          {
+            pty: this.ptysById.get(ptyId),
+            handle: this.getCodexFailoverHandle(ptyId),
+            settings: this.store.getSettings(),
+            rows: this.getAgentStatusSnapshotFn?.() ?? []
+          },
+          this.ptyController,
+          (terminal) => this.isCurrentCodexFailoverTerminal(terminal)
+        )
+      : Promise.resolve(null)
+  }
+
+  private isCurrentCodexFailoverTerminal(terminal: CodexFailoverTerminal): boolean {
+    const pty = this.ptysById.get(terminal.ptyId)
+    return Boolean(
+      pty?.connected &&
+      !pty.connectionId &&
+      !pty.isWsl &&
+      !pty.wslDistro &&
+      pty.incarnationId === terminal.incarnationId &&
+      pty.paneKey === `${terminal.tabId}:${terminal.leafId}` &&
+      this.getCodexFailoverHandle(terminal.ptyId) === terminal.handle &&
+      !(this.getAgentStatusSnapshotFn?.() ?? []).some(
+        (row) => row.paneKey === pty.paneKey && row.subagents?.length
+      )
+    )
+  }
+
   onPtyData(
     ptyId: string,
     data: string,
@@ -261,6 +320,9 @@ export class OrcaRuntimeWithOnPtyData extends OrcaRuntimeWithPreparePtyExecution
       this.touchMobileSessionSnapshotsForPty(ptyId)
     }
 
+    if (pty) {
+      this.terminalCodexFailover.observe(ptyId, pty.incarnationId, data)
+    }
     this.terminalStreamConsumers.publish(ptyId, data, () => ({
       seq: outputSequence,
       rawLength: sequenceChars,

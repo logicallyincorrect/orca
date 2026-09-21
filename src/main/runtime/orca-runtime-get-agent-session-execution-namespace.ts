@@ -94,7 +94,7 @@ export class OrcaRuntimeWithGetAgentSessionExecutionNamespace extends OrcaRuntim
     handoffAuthority?: {
       spawnToken: string
       providerRoot: string
-      sessionId: string
+      sessionId?: string
       launchArgs?: AgentSessionLaunchArgs
     }
   ): Promise<RuntimeEnsureAgentSessionResult> {
@@ -183,7 +183,9 @@ export class OrcaRuntimeWithGetAgentSessionExecutionNamespace extends OrcaRuntim
       ...(handoffAuthority
         ? {
             launchToken: handoffAuthority.spawnToken,
-            structuredAgentSessionId: handoffAuthority.sessionId
+            ...(handoffAuthority.sessionId
+              ? { structuredAgentSessionId: handoffAuthority.sessionId }
+              : {})
           }
         : {}),
       signal: _caller.signal

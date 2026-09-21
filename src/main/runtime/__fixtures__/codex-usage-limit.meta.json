@@ -1,0 +1,22 @@
+{
+  "capturedAt": "2026-09-18T03:06:44.992Z",
+  "platform": "darwin",
+  "command": [
+    "/opt/homebrew/bin/codex",
+    "--no-alt-screen",
+    "-m",
+    "gpt-5.4",
+    "-s",
+    "read-only",
+    "-a",
+    "never",
+    "-c",
+    "model_provider=\"capture\"",
+    "-c",
+    "model_providers.capture={name=\"Capture\",base_url=\"http://127.0.0.1:18749/v1\",wire_api=\"responses\",requires_openai_auth=false}"
+  ],
+  "cols": 120,
+  "rows": 32,
+  "note": "Codex CLI 0.155.0; real PTY with localhost Responses endpoint returning usage_limit_reached; no live account or inference.",
+  "exitCode": 0
+}
