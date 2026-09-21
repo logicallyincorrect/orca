@@ -6,6 +6,7 @@ import type { CodexConfigSyncStatus } from '../../shared/codex-config-sync-types
 import type { GrokAccountStatus } from '../../shared/rate-limit-types'
 
 export type CodexAccountsApi = {
+  preparePaneRestart?: (args: { ptyId: string }) => Promise<{ key: 'session_id'; id: string }>
   list: () => Promise<CodexRateLimitAccountsState>
   add: (args?: {
     runtime?: 'host' | 'wsl'
@@ -34,7 +35,7 @@ export type CodexAccountsApi = {
   >
   /** The selection lane each PTY launched from, keyed by pty id; unrecorded panes are absent. */
   listRecordedPaneLanes: (args: { ptyIds: string[] }) => Promise<Record<string, string>>
-  /** Drops launch records so a dismissed prompt stays dismissed across restarts. */
+  /** Persists dismissal without removing launch attribution. */
   forgetStalePanes: (args: { ptyIds: string[] }) => Promise<void>
 }
 

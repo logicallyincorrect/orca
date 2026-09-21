@@ -2,6 +2,8 @@ import { ipcRenderer } from 'electron'
 import type { PreloadApi } from '../api-types'
 
 export const codexAccountsApi = {
+  preparePaneRestart: (args: { ptyId: string }): Promise<{ key: 'session_id'; id: string }> =>
+    ipcRenderer.invoke('codexAccounts:preparePaneRestart', args),
   list: () => ipcRenderer.invoke('codexAccounts:list'),
   add: (args?: { runtime?: 'host' | 'wsl'; wslDistro?: string | null }) =>
     ipcRenderer.invoke('codexAccounts:add', args),

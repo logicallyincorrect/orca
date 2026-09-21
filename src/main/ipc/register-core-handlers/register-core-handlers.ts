@@ -143,7 +143,11 @@ export function registerCoreHandlers(
   registerCliHandlers()
   registerPreflightHandlers()
   registerUsageProviderHandlers({ claudeUsage, codexUsage, openCodeUsage })
-  registerCodexAccountHandlers(codexAccounts, () => store.getSettings())
+  registerCodexAccountHandlers(
+    codexAccounts,
+    () => store.getSettings(),
+    (ptyId) => runtime.recoverCodexTerminalContext(ptyId)
+  )
   registerAgentHookHandlers(runtime, { getPtyIdForPaneKey })
   registerCodexConfigSyncHandlers(codexAccounts.runtimeHomeService)
   registerAgentTrustHandlers()
