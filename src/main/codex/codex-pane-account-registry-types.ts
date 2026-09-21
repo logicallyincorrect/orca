@@ -17,6 +17,8 @@ export type CodexPaneAccountRecord = {
   accountId: string | null
   /** Absent only on records written before route provenance was introduced. */
   homeRoute?: CodexPaneHomeRoute
+  /** Dismisses one selection's restart warning without erasing launch attribution. */
+  dismissedRestartTarget?: string
   /** Rechecked when CODEX_HOME came from process-global shell startup. */
   shellStartupHomeOverride?: CodexShellStartupHomeOverride
   /** Rechecked after restart when CODEX_HOME came from the process environment. */

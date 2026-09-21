@@ -138,6 +138,7 @@ function recordsEqual(
     left?.selectionKey === right.selectionKey &&
     left.accountId === right.accountId &&
     left.homeRoute === right.homeRoute &&
+    left.dismissedRestartTarget === right.dismissedRestartTarget &&
     left.shellStartupHomeOverride?.home === right.shellStartupHomeOverride?.home &&
     left.shellStartupHomeOverride?.shell === right.shellStartupHomeOverride?.shell &&
     left.shellStartupHomeOverride?.configHome === right.shellStartupHomeOverride?.configHome &&

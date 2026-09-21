@@ -15,7 +15,7 @@ import {
   reconcileCodexPaneAccountsWithLivePtys,
   recordCodexPaneAccount
 } from './codex-pane-account-registry'
-import { forgetStaleCodexPanes, listStaleCodexPanes } from './codex-stale-pane-accounts'
+import { dismissStaleCodexPanes, listStaleCodexPanes } from './codex-stale-pane-accounts'
 import { __resetShellStartupEnvCache } from '../pty/shell-startup-env'
 
 let userDataPath: string
@@ -578,10 +578,11 @@ describe('listStaleCodexPanes', () => {
     recordCodexPaneAccount('pty-1', { selectionKey: 'host', accountId: 'account-a' })
     recordCodexPaneAccount('pty-2', { selectionKey: 'host', accountId: 'account-a' })
 
-    forgetStaleCodexPanes(['pty-1'])
+    dismissStaleCodexPanes({ ptyIds: ['pty-1'], settings: settingsWithSelection('account-b') })
     _internals.resetCache()
 
-    // Why: the dismissal must outlive the app, or the startup sweep re-raises it.
+    // The dismissal survives restart without erasing the launch account.
+    expect(getCodexPaneAccount('pty-1')?.accountId).toBe('account-a')
     expect(
       listStaleCodexPanes({
         ptyIds: ['pty-1', 'pty-2'],

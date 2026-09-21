@@ -1,7 +1,7 @@
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import { getSelectedCodexAccountIdForTarget } from '../codex-accounts/runtime-selection'
 import {
-  forgetCodexPaneAccount,
+  recordCodexPaneAccount,
   listRecordedCodexPaneAccounts,
   type CodexPaneHomeRoute
 } from './codex-pane-account-registry'
@@ -13,15 +13,14 @@ export type StaleCodexPane = {
   reason: 'account-change' | 'home-route-change'
 }
 
-/**
- * Reports which of the given PTYs still launch Codex as a previously selected
- * account, so the restart prompt survives an app restart the shells outlive.
- */
-export function listStaleCodexPanes(args: {
+type CodexPaneSelectionCheck = {
   ptyIds: readonly string[]
   settings: GlobalSettings
   activeHostHomeRoute?: CodexPaneHomeRoute
-}): StaleCodexPane[] {
+}
+
+/** Compares immutable launch attribution with the selected account in the same runtime. */
+export function listStaleCodexPanes(args: CodexPaneSelectionCheck): StaleCodexPane[] {
   const stalePanes: StaleCodexPane[] = []
   const records = listRecordedCodexPaneAccounts(args.ptyIds)
   for (const ptyId of args.ptyIds) {
@@ -33,6 +32,15 @@ export function listStaleCodexPanes(args: {
       args.settings,
       parseSelectionLaneKey(record.selectionKey)
     )
+    if (
+      record.dismissedRestartTarget ===
+      restartTarget(
+        activeAccountId,
+        record.selectionKey === 'host' ? args.activeHostHomeRoute : undefined
+      )
+    ) {
+      continue
+    }
     const homeRouteChanged =
       record.selectionKey === 'host' &&
       record.homeRoute !== undefined &&
@@ -52,17 +60,28 @@ export function listStaleCodexPanes(args: {
   return stalePanes
 }
 
-/**
- * Drops the launch record for panes the user chose to keep on the old account.
- *
- * Why: keeping the old account is an answer to the prompt, but the record is
- * what the startup sweep re-raises from — without this the same dismissed pane
- * is prompted again (and has its input blocked again) after every app restart.
- */
-export function forgetStaleCodexPanes(ptyIds: readonly string[]): void {
-  for (const ptyId of ptyIds) {
-    forgetCodexPaneAccount(ptyId)
+/** Retain the actual launch account for quota recovery after the warning is dismissed. */
+export function dismissStaleCodexPanes(args: CodexPaneSelectionCheck): void {
+  for (const [ptyId, record] of listRecordedCodexPaneAccounts(args.ptyIds)) {
+    const accountId = getSelectedCodexAccountIdForTarget(
+      args.settings,
+      parseSelectionLaneKey(record.selectionKey)
+    )
+    recordCodexPaneAccount(ptyId, {
+      ...record,
+      dismissedRestartTarget: restartTarget(
+        accountId,
+        record.selectionKey === 'host' ? args.activeHostHomeRoute : undefined
+      )
+    })
   }
+}
+
+function restartTarget(
+  accountId: string | null,
+  homeRoute: CodexPaneHomeRoute | undefined
+): string {
+  return JSON.stringify([accountId, homeRoute ?? null])
 }
 
 function parseSelectionLaneKey(selectionKey: string): {
