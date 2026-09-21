@@ -16,7 +16,7 @@ import { useAppStore } from '@/store'
 import { getWorktreeMapFromState } from '@/store/selectors'
 import { singlePaneLayoutSnapshot } from '@/store/slices/terminal-helpers'
 import { hasRegisteredRuntimeTerminalTab } from '@/runtime/sync-runtime-graph'
-import { CODEX_ACCOUNT_RESTART_STARTUP } from '@/lib/codex-session-restart'
+import { prepareCodexAccountRestartStartup } from '@/lib/codex-account-restart-startup'
 import { isForeignMachineCodexPtyId } from '@/lib/codex-pane-selection-lane'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
 import {
@@ -166,21 +166,15 @@ async function executeDetachedCodexPaneRestart(
   ptyId: string
 ): Promise<void> {
   const state = useAppStore.getState()
+  const startup = await prepareCodexAccountRestartStartup(
+    state,
+    located.worktreeId,
+    located.tab.id,
+    located.leafId,
+    ptyId
+  )
   if (!located.leafId) {
-    // Why: without a usable layout leaf the replacement cannot be bound in
-    // place, so kill now and let the tab's next mount run the Codex startup.
-    if (!isLocatedCodexPaneCurrent(state, located, ptyId)) {
-      reopenCurrentCodexRestartPrompt(located, ptyId)
-      return
-    }
-    const store = useAppStore.getState()
-    store.suppressPtyExit(ptyId)
-    store.clearTabPtyId(located.tab.id, ptyId)
-    store.consumeSuppressedPtyExit(ptyId)
-    store.queueTabStartupCommand(located.tab.id, { ...CODEX_ACCOUNT_RESTART_STARTUP })
-    store.clearCodexRestartNotice(ptyId)
-    killReplacedCodexPanePty(ptyId)
-    return
+    throw new Error('Codex pane identity is unavailable.')
   }
   const { worktreeId, tab, leafId } = located
 
@@ -213,9 +207,10 @@ async function executeDetachedCodexPaneRestart(
     ...(cwd ? { cwd } : {}),
     cwdFallback: 'worktree',
     env: buildPaneIdentityEnv(state, worktreeId, tab.id, leafId),
-    command: CODEX_ACCOUNT_RESTART_STARTUP.command,
-    startupCommandDelivery: CODEX_ACCOUNT_RESTART_STARTUP.startupCommandDelivery,
-    launchAgent: CODEX_ACCOUNT_RESTART_STARTUP.launchAgent,
+    command: startup.command,
+    startupCommandDelivery: startup.startupCommandDelivery,
+    launchAgent: startup.launchAgent,
+    launchConfig: startup.launchConfig,
     worktreeId,
     tabId: tab.id,
     leafId,

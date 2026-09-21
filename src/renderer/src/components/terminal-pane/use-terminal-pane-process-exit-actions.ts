@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect } from 'react'
 import { useAppStore } from '../../store'
-import { CODEX_ACCOUNT_RESTART_STARTUP } from '@/lib/codex-session-restart'
+import { prepareCodexAccountRestartStartup } from '@/lib/codex-account-restart-startup'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
 import { connectPanePty } from './pty-connection'
 import { bindPanePtyId } from '@/lib/pane-manager/mobile-fit-overrides'
@@ -58,13 +58,35 @@ export function useTerminalPaneProcessExitActions(controller: TerminalPaneCloseC
   } = controller
 
   const handleRestartCodexPane = useCallback(
-    (
-      paneId: number,
-      restartStartup: PtyConnectionDeps['startup'] = CODEX_ACCOUNT_RESTART_STARTUP
-    ) => {
+    async (paneId: number, restartStartup?: PtyConnectionDeps['startup']) => {
       const manager = managerRef.current
       const pane = manager?.getPanes().find((candidate) => candidate.id === paneId)
       if (!manager || !pane) {
+        return
+      }
+      const originalTransport = paneTransportsRef.current.get(paneId)
+      if (restartStartup === undefined) {
+        try {
+          restartStartup = await prepareCodexAccountRestartStartup(
+            useAppStore.getState(),
+            worktreeId,
+            tabId,
+            pane.leafId,
+            paneTransportsRef.current.get(paneId)?.getPtyId()
+          )
+        } catch (error) {
+          const ptyId = paneTransportsRef.current.get(paneId)?.getPtyId()
+          if (ptyId) {
+            useAppStore.getState().reopenCodexRestartPrompt(ptyId)
+          }
+          setTerminalError(error instanceof Error ? error.message : String(error))
+          return
+        }
+      }
+      if (
+        managerRef.current !== manager ||
+        paneTransportsRef.current.get(paneId) !== originalTransport
+      ) {
         return
       }
       const transport = paneTransportsRef.current.get(paneId)

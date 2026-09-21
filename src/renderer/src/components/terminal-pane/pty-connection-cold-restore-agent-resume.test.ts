@@ -611,4 +611,69 @@ describe('connectPanePty', () => {
     )
     expect(mockStoreState.clearSleepingAgentSession).not.toHaveBeenCalled()
   })
+  it('keeps an explicit account restart instead of restoring the old account provenance', async () => {
+    const { connectPanePty } = await import('./pty-connection')
+    const transport = createMockTransport('replacement-pty')
+    transportFactoryQueue.push(transport)
+    const paneKey = makePaneKey('tab-1', LEAF_1)
+    const threadId = '33333333-3333-4333-8333-333333333333'
+    const command = `codex 'resume' '${threadId}'`
+    mockStoreState.tabsByWorktree = { 'wt-1': [{ id: 'tab-1', ptyId: null }] }
+    mockStoreState.ptyIdsByTabId = { 'tab-1': [] }
+    mockStoreState.agentStatusByPaneKey = {
+      [paneKey]: {
+        state: 'working',
+        prompt: '',
+        agentType: 'codex',
+        paneKey,
+        updatedAt: 1,
+        stateStartedAt: 1,
+        stateHistory: [],
+        providerSession: {
+          key: 'session_id',
+          id: threadId,
+          transcriptPath: '/Users/example/.codex/sessions/old-account.jsonl'
+        }
+      }
+    }
+    mockStoreState.sleepingAgentSessionsByPaneKey = {
+      [paneKey]: {
+        paneKey,
+        tabId: 'tab-1',
+        worktreeId: 'wt-1',
+        agent: 'codex',
+        providerSession: {
+          key: 'session_id',
+          id: threadId,
+          transcriptPath: '/Users/example/.codex/sessions/old-account.jsonl'
+        },
+        prompt: '',
+        state: 'working',
+        capturedAt: 1,
+        updatedAt: 1,
+        origin: 'live'
+      }
+    }
+    const pane = createPane(1)
+    const manager = createManager(1)
+    const deps = createDeps({
+      startup: {
+        command,
+        launchAgent: 'codex',
+        startupCommandDelivery: 'shell-ready'
+      }
+    })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Existing connection fixtures implement the terminal methods this path uses.
+    const binding = connectPanePty(pane as never, manager as never, deps as never)
+    await flushAsyncTicks(20)
+    expect(transport.connect).toHaveBeenCalledOnce()
+    const effectiveSpawn = {
+      ...createdTransportOptions[0],
+      ...transport.connect.mock.calls[0]?.[0]
+    }
+    expect(effectiveSpawn.command).toBe(command)
+    expect(effectiveSpawn.resumeProviderSession).toBeUndefined()
+    expect(effectiveSpawn.env?.CODEX_HOME).toBeUndefined()
+    binding.dispose()
+  })
 })

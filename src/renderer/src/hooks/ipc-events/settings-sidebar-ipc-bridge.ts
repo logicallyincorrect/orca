@@ -5,6 +5,7 @@ import { subscribeToUnpairedDeviceAuthNotification } from '../unpaired-device-au
 import { translate } from '@/i18n/i18n'
 import { toast } from 'sonner'
 import { useAppStore } from '../../store'
+import { sweepChangedCodexAccountSelection } from '@/lib/codex-stale-pane-sweep'
 
 function getShortcutPlatform(): NodeJS.Platform {
   if (navigator.userAgent.includes('Mac')) {
@@ -125,6 +126,7 @@ export function registerSettingsAndSidebarIpcBridge(unsubs: (() => void)[]): voi
       if ('worktreeVisibilityDefaults' in updates) {
         void store.fetchAllWorktrees({ visibilityOwnerHostId: 'local' })
       }
+      sweepChangedCodexAccountSelection(useAppStore.getState(), store.settings)
     })
   )
 

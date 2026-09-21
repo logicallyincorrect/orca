@@ -3,6 +3,7 @@ import {
   type CodexPaneScanResult
 } from './codex-session-restart'
 import { isForeignMachineCodexPtyId } from './codex-pane-selection-lane'
+import type { GlobalSettings } from '../../../shared/global-settings-types'
 
 // Why: the first delay coalesces the startup burst of binds and lets
 // updateTabPtyId (written just after the layout binding) land, since the scan
@@ -64,6 +65,24 @@ export function sweepRestoredCodexPanesForStaleAccounts(state: {
       notifyCodexPaneBoundForStaleSweep(ptyId)
     }
   }
+}
+
+export function sweepChangedCodexAccountSelection(
+  state: { settings: GlobalSettings | null; ptyIdsByTabId: Record<string, string[]> },
+  previousSettings: GlobalSettings
+): void {
+  if (
+    !state.settings ||
+    (state.settings.activeCodexManagedAccountId === previousSettings.activeCodexManagedAccountId &&
+      JSON.stringify(state.settings.activeCodexManagedAccountIdsByRuntime) ===
+        JSON.stringify(previousSettings.activeCodexManagedAccountIdsByRuntime))
+  ) {
+    return
+  }
+  // A previous warning does not establish which account a later selection leaves this pane on.
+  notifiedPtyIds.clear()
+  attemptsByPtyId.clear()
+  sweepRestoredCodexPanesForStaleAccounts(state)
 }
 
 export function resetCodexStalePaneSweepForTests(): void {

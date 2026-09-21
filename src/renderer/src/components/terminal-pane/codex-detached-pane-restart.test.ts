@@ -13,6 +13,7 @@ import {
 const ACCOUNT_A = 'a@example.com'
 const ACCOUNT_B = 'b@example.com'
 const LEAF_ID = '11111111-1111-4111-8111-111111111111'
+const THREAD = '22222222-2222-4222-8222-222222222222'
 const OLD_PTY = 'wt1@@old'
 const NEW_PTY = 'wt1@@new'
 const UNLOCATED_PTY = 'wt1@@unlocated'
@@ -46,6 +47,18 @@ function seedQueuedRestart(
         }
       ]
     } as never,
+    agentStatusByPaneKey: {
+      [`tab-1:${LEAF_ID}`]: {
+        agentType: 'codex',
+        state: 'done',
+        prompt: '',
+        updatedAt: 1,
+        stateStartedAt: 1,
+        paneKey: `tab-1:${LEAF_ID}`,
+        stateHistory: [],
+        providerSession: { key: 'session_id', id: THREAD }
+      }
+    },
     ptyIdsByTabId: { 'tab-1': [OLD_PTY] },
     terminalLayoutsByTabId: leafId
       ? {
@@ -107,7 +120,7 @@ describe('codex detached pane restart executor', () => {
         cols: 80,
         rows: 24,
         cwd: '/Users/dev/code/orca',
-        command: 'codex',
+        command: `codex 'resume' '${THREAD}'`,
         startupCommandDelivery: 'shell-ready',
         launchAgent: 'codex',
         worktreeId: 'wt1',
@@ -404,40 +417,20 @@ describe('codex detached pane restart executor', () => {
     expect(awaitsCodexRestartAnswer(state.codexRestartNoticeByPtyId[OLD_PTY])).toBe(true)
   })
 
-  it('kills now and defers the Codex respawn to mount when the layout leaf is unknown', async () => {
-    seedQueuedRestart({ leafId: null })
-
-    await sweepUnclaimedCodexPaneRestarts()
-
-    const state = useAppStore.getState()
-    expect(window.api.pty.spawn).not.toHaveBeenCalled()
-    expect(window.api.pty.kill).toHaveBeenCalledExactlyOnceWith(OLD_PTY)
-    expect(state.ptyIdsByTabId['tab-1']).toEqual([])
-    expect(state.pendingStartupByTabId['tab-1']).toEqual(
-      expect.objectContaining({
-        command: 'codex',
-        startupCommandDelivery: 'shell-ready',
-        launchAgent: 'codex'
-      })
-    )
-    expect(blocksCodexPaneInput(state.codexRestartNoticeByPtyId[OLD_PTY])).toBe(false)
-  })
-
-  it('publishes a rootless replacement startup before waiting for old PTY teardown', async () => {
-    seedQueuedRestart({ leafId: null })
-    const pendingKill = deferred<void>()
-    vi.mocked(window.api.pty.kill).mockReturnValue(pendingKill.promise)
-
-    const restart = sweepUnclaimedCodexPaneRestarts()
-    await vi.waitFor(() => expect(window.api.pty.kill).toHaveBeenCalledExactlyOnceWith(OLD_PTY))
-
-    expect(useAppStore.getState().ptyIdsByTabId['tab-1']).toEqual([])
-    expect(useAppStore.getState().pendingStartupByTabId['tab-1']).toMatchObject({
-      command: 'codex',
-      launchAgent: 'codex'
-    })
-    expect(useAppStore.getState().suppressedPtyExitIds[OLD_PTY]).toBeUndefined()
-    await restart
-    pendingKill.resolve()
-  })
+  it.each(['missing-leaf', 'missing-session'] as const)(
+    'preserves the original terminal when identity is %s',
+    async (kind) => {
+      seedQueuedRestart({ leafId: kind === 'missing-leaf' ? null : LEAF_ID })
+      if (kind === 'missing-session') {
+        useAppStore.setState({ agentStatusByPaneKey: {} })
+      }
+      await sweepUnclaimedCodexPaneRestarts()
+      expect(window.api.pty.spawn).not.toHaveBeenCalled()
+      expect(window.api.pty.kill).not.toHaveBeenCalled()
+      expect(useAppStore.getState().ptyIdsByTabId['tab-1']).toEqual([OLD_PTY])
+      expect(
+        awaitsCodexRestartAnswer(useAppStore.getState().codexRestartNoticeByPtyId[OLD_PTY])
+      ).toBe(true)
+    }
+  )
 })

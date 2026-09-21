@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
-import { markLiveCodexSessionsForRestart } from './codex-session-restart'
+import {
+  markLiveCodexSessionsForRestart,
+  markRestoredStaleCodexSessionsForRestart
+} from './codex-session-restart'
 
 const ACCOUNT_A = 'account-a@example.com'
 const ACCOUNT_B = 'account-b@example.com'
@@ -71,6 +74,12 @@ describe('Codex restored route notice recheck', () => {
     } else {
       delete (globalThis as { window?: typeof window }).window
     }
+  })
+
+  it('clears an old warning when a selection-triggered rescan confirms the pane matches', async () => {
+    seedRouteNotice({ previousAccountId: 'account-a', previousAccountLabel: ACCOUNT_A })
+    await markRestoredStaleCodexSessionsForRestart({ ptyIds: ['pty-1'] })
+    expect(useAppStore.getState().codexRestartNoticeByPtyId).toEqual({})
   })
 
   it('clears the notice when main confirms the launch account and route are restored', async () => {

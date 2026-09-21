@@ -39,10 +39,9 @@ export default function CodexRestartChip({
 
   const handleDismiss = (): void => {
     useAppStore.getState().dismissCodexRestartNotices([ptyId])
-    // Why: notices are renderer-only, so the persisted launch record must be
-    // cleared for this pane or the startup sweep re-raises its answered prompt.
+    // Persist the dismissal while retaining the account this terminal actually uses.
     void window.api.codexAccounts.forgetStalePanes({ ptyIds: [ptyId] }).catch((err: unknown) => {
-      console.warn('Failed to forget dismissed Codex pane account:', err)
+      console.warn('Failed to persist Codex account warning dismissal:', err)
     })
   }
 
