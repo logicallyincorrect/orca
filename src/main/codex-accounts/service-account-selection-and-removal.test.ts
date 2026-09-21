@@ -68,6 +68,10 @@ describe('CodexAccountService config sync', () => {
     const result = await service.selectAccount(null)
 
     expect(result.activeAccountId).toBe(null)
+    expect(store.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ activeCodexManagedAccountId: null }),
+      { notifyListeners: true }
+    )
     expect(runtimeHome.syncForCurrentSelection).toHaveBeenCalled()
     expect(rateLimits.refreshForCodexAccountChange).toHaveBeenCalled()
     expect(onHostSystemDefaultSelected).toHaveBeenCalledOnce()
